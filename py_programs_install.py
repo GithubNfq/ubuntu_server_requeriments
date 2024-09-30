@@ -26,8 +26,11 @@ def install_docker():
         subprocess.run(['sudo', 'apt-get', 'update'], check=True)
         subprocess.run(['sudo', 'apt-get', 'install', '-y', 'ca-certificates', 'curl', 'gnupg', 'lsb-release'], check=True)
         
+        # Comprobar si el directorio /etc/apt/keyrings ya existe
+        if not os.path.exists('/etc/apt/keyrings'):
+            subprocess.run(['sudo', 'mkdir', '-m', '0755', '/etc/apt/keyrings'], check=True)
+
         # Agregar la clave GPG oficial de Docker
-        subprocess.run(['sudo', 'mkdir', '-m', '0755', '/etc/apt/keyrings'], check=True)
         subprocess.run([
             'curl', '-fsSL', 'https://download.docker.com/linux/ubuntu/gpg', 
             '|', 'sudo', 'gpg', '--dearmor', '-o', '/etc/apt/keyrings/docker.gpg'
@@ -35,8 +38,8 @@ def install_docker():
 
         # Agregar el repositorio de Docker
         subprocess.run([
-            'echo', '"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] '
-            'https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"',
+            'echo', 'deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] '
+            'https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable',
             '|', 'sudo', 'tee', '/etc/apt/sources.list.d/docker.list', '>', '/dev/null'
         ], shell=True, check=True)
 
