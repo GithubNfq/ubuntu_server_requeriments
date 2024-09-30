@@ -1,0 +1,11 @@
+git
+vim
+wget
+curl
+python3-pip
+apache2
+nginx
+mysql-server
+postgresql
+certbot
+docker
