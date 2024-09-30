@@ -1,90 +1,115 @@
-import curses
-import os
 import subprocess
+import os
 
-# Listado de programas disponibles para instalar
-PROGRAMAS = [
-    "vim",
-    "git",
-    "curl",
-    "htop",
-    "wget",
-    "gimp",
-    "python3-pip",
-    "vlc",
-    "build-essential",
-    "net-tools",
-]
-
-# Función para verificar si un programa está instalado
-def esta_instalado(programa):
+# Función para verificar si una aplicación está instalada
+def check_installed(package):
     try:
-        subprocess.run(["dpkg", "-l", programa], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(['dpkg', '-s', package], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return True
     except subprocess.CalledProcessError:
         return False
 
-# Función para mostrar y permitir seleccionar programas usando curses
-def mostrar_menu(stdscr, programas, instalados):
-    curses.curs_set(0)  # Ocultar el cursor
-    current_row = 0  # Fila actual seleccionada
-    seleccionados = [False] * len(programas)  # Estado de selección de los programas
+# Función para instalar una aplicación desde apt-get
+def install_package(package):
+    print(f"Instalando {package}...")
+    try:
+        subprocess.run(['sudo', 'apt-get', 'install', '-y', package], check=True)
+        print(f"{package} instalado correctamente.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error al instalar {package}: {e}")
 
-    while True:
-        stdscr.clear()
-        stdscr.addstr(0, 0, "Selecciona los programas que deseas instalar (Espacio para seleccionar, Enter para confirmar):")
+# Función para instalar Docker y Docker Compose desde el repositorio oficial
+def install_docker():
+    print("Instalando Docker desde el repositorio oficial...")
+    try:
+        # Actualizar el sistema e instalar dependencias necesarias
+        subprocess.run(['sudo', 'apt-get', 'update'], check=True)
+        subprocess.run(['sudo', 'apt-get', 'install', '-y', 'ca-certificates', 'curl', 'gnupg', 'lsb-release'], check=True)
+        
+        # Agregar la clave GPG oficial de Docker
+        subprocess.run(['sudo', 'mkdir', '-m', '0755', '/etc/apt/keyrings'], check=True)
+        subprocess.run([
+            'curl', '-fsSL', 'https://download.docker.com/linux/ubuntu/gpg', 
+            '|', 'sudo', 'gpg', '--dearmor', '-o', '/etc/apt/keyrings/docker.gpg'
+        ], shell=True, check=True)
 
-        # Mostrar programas y si están seleccionados
-        for idx, programa in enumerate(programas):
-            # Marcar con 'X' si ya está instalado
-            x = "X" if instalados[idx] or seleccionados[idx] else " "
-            stdscr.addstr(idx + 1, 0, f"[{x}] {programa}", curses.A_REVERSE if idx == current_row else curses.A_NORMAL)
+        # Agregar el repositorio de Docker
+        subprocess.run([
+            'echo', '"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] '
+            'https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"',
+            '|', 'sudo', 'tee', '/etc/apt/sources.list.d/docker.list', '>', '/dev/null'
+        ], shell=True, check=True)
 
-        key = stdscr.getch()  # Leer entrada de teclado
+        # Instalar Docker
+        subprocess.run(['sudo', 'apt-get', 'update'], check=True)
+        subprocess.run(['sudo', 'apt-get', 'install', '-y', 'docker-ce', 'docker-ce-cli', 'containerd.io', 'docker-buildx-plugin', 'docker-compose-plugin'], check=True)
+        
+        print("Docker y Docker Compose instalados correctamente.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error al instalar Docker: {e}")
 
-        if key == curses.KEY_UP and current_row > 0:
-            current_row -= 1
-        elif key == curses.KEY_DOWN and current_row < len(programas) - 1:
-            current_row += 1
-        elif key == ord(" "):  # Alternar selección con barra espaciadora (si no está ya instalado)
-            if not instalados[idx]:  # No se puede deseleccionar si ya está instalado
-                seleccionados[current_row] = not seleccionados[current_row]
-        elif key == ord("\n"):  # Confirmar selección con Enter
-            break
+# Función para leer el listado de aplicaciones desde un archivo
+def read_applications(file_path):
+    if not os.path.exists(file_path):
+        print(f"El archivo {file_path} no existe.")
+        return []
+    
+    with open(file_path, 'r') as file:
+        apps = [line.strip() for line in file.readlines()]
+    return apps
 
-        stdscr.refresh()
-
-    return [programa for idx, programa in enumerate(programas) if seleccionados[idx]]
-
-# Función para instalar programas seleccionados
-def instalar_programas(programas):
-    if not programas:
-        print("No se seleccionaron programas para instalar.")
-        return
-
-    print("Instalando programas...")
-    for programa in programas:
-        try:
-            print(f"Instalando {programa}...")
-            subprocess.run(["sudo", "apt", "install", "-y", programa], check=True)
-        except subprocess.CalledProcessError:
-            print(f"Error al instalar {programa}.")
+# Función para mostrar el menú de selección
+def display_menu(apps):
+    print("Seleccione las aplicaciones que desea instalar (marcadas con * si ya están instaladas):\n")
+    selected_apps = []
+    
+    for i, app in enumerate(apps):
+        if app == "docker":
+            installed = check_installed("docker-ce")
         else:
-            print(f"{programa} instalado correctamente.")
-
-def main():
-    # Verificar cuáles programas ya están instalados
-    instalados = [esta_instalado(programa) for programa in PROGRAMAS]
-
-    # Ejecutar la interfaz de selección
-    seleccionados = curses.wrapper(mostrar_menu, PROGRAMAS, instalados)
-
-    # Mostrar los programas seleccionados y proceder a instalarlos
-    if seleccionados:
-        print(f"Programas seleccionados: {', '.join(seleccionados)}")
-        instalar_programas(seleccionados)
+            installed = check_installed(app)
+        mark = "*" if installed else " "
+        print(f"[{mark}] {i+1}. {app}")
+    
+    print("\nIngrese los números de las aplicaciones que desea instalar separados por comas (ej: 1,3,5), o presione Enter para seleccionar todas:")
+    user_input = input("Seleccionar: ")
+    
+    if user_input.strip() == "":
+        selected_apps = apps  # Seleccionar todas si el usuario presiona Enter
     else:
-        print("No se seleccionó ningún programa.")
+        selections = [int(num.strip()) - 1 for num in user_input.split(",") if num.strip().isdigit()]
+        selected_apps = [apps[i] for i in selections if 0 <= i < len(apps)]
+    
+    return selected_apps
+
+# Función principal
+def main():
+    # Ruta del archivo que contiene el listado de aplicaciones
+    file_path = 'applications.txt'
+    
+    # Leer las aplicaciones desde el archivo
+    apps = read_applications(file_path)
+    if not apps:
+        return
+    
+    # Mostrar el menú de selección
+    selected_apps = display_menu(apps)
+    
+    # Actualizar la lista de paquetes antes de instalar
+    print("\nActualizando el sistema...")
+    subprocess.run(['sudo', 'apt-get', 'update'], check=True)
+    
+    # Instalar las aplicaciones seleccionadas
+    for app in selected_apps:
+        if app == "docker":
+            if check_installed("docker-ce"):
+                print("Docker ya está instalado.")
+            else:
+                install_docker()
+        elif check_installed(app):
+            print(f"{app} ya está instalado.")
+        else:
+            install_package(app)
 
 if __name__ == "__main__":
     main()
