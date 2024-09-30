@@ -88,7 +88,7 @@ def display_menu(apps):
 # Función principal
 def main():
     # Ruta del archivo que contiene el listado de aplicaciones
-    file_path = 'applications.txt'
+    file_path = 'ls_applications.list'
     
     # Leer las aplicaciones desde el archivo
     apps = read_applications(file_path)
